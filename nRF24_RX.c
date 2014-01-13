@@ -173,13 +173,23 @@ void reset(void)
 	_delay_us(10);
 	SETBIT(PORTB, CSNPin);
 }
-
-void receive_data()
+uint8_t *receive_payload(void)
+{
+	SETBIT(PORTB,CEPin);//Start Active RX Mode
+	_delay_ms(1000);
+	USART_SENDSTRING("Waiting..");
+	while ((GetReg(STATUS) & (1<<6)) == 0)
+	{
+		_delay_us(10);
+	}
+	CLEARBIT(PORTB,CEPin);//Enter Standby Mode
+	_delay_us(100);
+	return WriteToNrf(R,R_RX_PAYLOAD,data,32);
+}
+void receive_data(void)
 {
 	uint8_t val[5];
-	val[0] = 0x1F;
-	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX[BIT 0] in CONFIG register as HIGH for PRX
-	_delay_us(100);
+	
 	val[0] = 0x02;
 	WriteToNrf(W,EN_RXADDR,val,1);//Enable Data Pipe 1 for receiving
 	_delay_us(100);
@@ -201,15 +211,10 @@ void receive_data()
 	val[0] = 0x20;
 	WriteToNrf(W,RX_PW_P1,val,1);//Set Payload width on DP1 as 32Bytes
 	_delay_us(100);
-	SETBIT(PORTB,CEPin);//Start Active RX Mode
-	_delay_ms(1000);
-	USART_SENDSTRING("Waiting..");
-	while ((GetReg(STATUS) & (1<<6)) == 0)
-	{
-		_delay_us(10);
-	}
-	CLEARBIT(PORTB,CEPin);//Enter Standby Mode
+	val[0] = 0x1F;
+	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX[BIT 0] in CONFIG register as HIGH for PRX
 	_delay_us(100);
+	
 }
 int main(void)
 {
@@ -220,13 +225,13 @@ int main(void)
 	DDRD |= (1<<LEDPin);		//Set LEDPin as Output
 	DDRD &= ~(1<<BUTPin);		//Set BUTPin as Input
 	PORTD |= (1<<BUTPin);		//Enable internal Pull up on BUTPin
+	receive_data();
 	while(1)
 	{
-		receive_data();
+		val = receive_payload();
 		PORTD |= (1<<LEDPin);	//DATA RECEIVED Toggle LED
 		_delay_ms(500);
 		PORTD &= ~(1<<LEDPin);
-		val=WriteToNrf(R,R_RX_PAYLOAD,data,32);
 		for(int i=0;i<32;i++)
 		{
 			USART_TRANSMIT(val[i]);
