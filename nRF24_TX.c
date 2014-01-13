@@ -195,9 +195,6 @@ void send_data(uint8_t * tx_payload)
 	val[0]=0x07;
 	WriteToNrf(W,RF_SETUP,val,1);//Set to 1Mbps,0dbm
 	_delay_us(100);
-	val[0] = 0x1E;
-	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX[BIT 0] in STATUS register as Low for PTX
-	_delay_us(100);
 	for(int i = 0;i<5;i++)
 	{
 		val[i] = 0x12;
@@ -218,6 +215,9 @@ void send_data(uint8_t * tx_payload)
 		val[i] = 0x12;
 	}
 	WriteToNrf(W,RX_ADDR_P0,val,5);//RX_ADDR_P0 same as TX_ADDR
+	_delay_us(100);
+	val[0] = 0x1E;
+	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX[BIT 0] in STATUS register as Low for PTX
 	_delay_us(100);
 	transmit_payload(tx_payload);
 	while((GetReg(STATUS) & (1<<5)) == 0)
@@ -251,9 +251,7 @@ int main(void)
 	send_data(w_buf);
 	while(1)
 	{
-		send_data(w_buf);
-		_delay_ms(100);
-		reset();
-		_delay_ms(100);
+		PORTD ^= (1<<LEDPin);
+		_delay_ms(500);
 	}
 }
