@@ -173,85 +173,83 @@ void reset(void)
 	_delay_us(10);
 	SETBIT(PORTB, CSNPin);
 }
-void transmit_payload(uint8_t * W_BUFFER)
+//void transmit_payload(uint8_t * W_BUFFER)
+//{
+	//WriteToNrf(R,FLUSH_TX,data,1);
+	//_delay_us(130);
+	//WriteToNrf(R,W_TX_PAYLOAD,W_BUFFER,32);		//Sends the data to nRf
+	//_delay_us(130);
+	//SETBIT(PORTB,CEPin);		//CE Held HIGH TO TRANSMIT
+	//_delay_us(130);
+	//CLEARBIT(PORTB,CEPin);
+	//_delay_us(130);
+	//
+//}
+void transmit_init(void)
 {
-	WriteToNrf(R,FLUSH_TX,data,1);
-	_delay_us(130);
-	WriteToNrf(R,W_TX_PAYLOAD,W_BUFFER,32);		//Sends the data to nRf
-	_delay_us(130);
-	SETBIT(PORTB,CEPin);		//CE Held HIGH TO TRANSMIT
-	_delay_us(130);
-	CLEARBIT(PORTB,CEPin);
-	_delay_us(130);
+	_delay_ms(100);
+	uint8_t val[5];
+	val[0] = 0x1C;
+	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX in CONFIG reg to LOW [DONT POWER UP THE RADIO i.e keep it in power down mode]
+	for(int i = 0;i<5;i++)
+	{
+		val[i] = 0x12;
+	}
+	WriteToNrf(W,TX_ADDR,val,5);//Clock the addr of the receiving node in TX_ADDR
+	val[0] = 0x01;
+	WriteToNrf(W,EN_AA,val,1);//Enable Auto ACK
+	val[0] = 0x01;
+	WriteToNrf(W,EN_RXADDR,val,1);//Configure Data Pipe 0 to receive the Auto Ack
+	for(int i = 0;i<5;i++)
+	{
+		val[i] = 0x12;
+	}
+	WriteToNrf(W,RX_ADDR_P0,val,5);//Clock RX_ADDR_P0 same as TX_ADDR
+	val[0] = 0x32;
+	WriteToNrf(W,RF_CH,val,1);//Set the CH
+	val[0] = 0x2F;
+	WriteToNrf(W,SETUP_RETR,val,1);//Set up Retries
+	val[0]=0x07;
+	WriteToNrf(W,RF_SETUP,val,1);//Set the transfer speed
+	val[0] = 0x1E;
+	WriteToNrf(W,CONFIG,val,1);//POWER UP RADIO IN TX MODE
+	_delay_ms(100);
+	USART_SENDSTRING("RADIO_INIT");//USART--> Radio Initialised as transmitter
 	
 }
-
 void send_data(uint8_t * tx_payload)
 {
-	uint8_t val[5];
-	val[0] = 0x32;
-	WriteToNrf(W,RF_CH,val,1);//Setup Rf Channel 2450
-	_delay_us(100);
-	val[0]=0x07;
-	WriteToNrf(W,RF_SETUP,val,1);//Set to 1Mbps,0dbm
-	_delay_us(100);
-	for(int i = 0;i<5;i++)
-	{
-		val[i] = 0x12;
-	}
-	WriteToNrf(W,TX_ADDR,val,5);//Clock in the TX_ADDR with the address of the receiving node
-	_delay_us(100);
-	val[0] = 0x03;
-	WriteToNrf(W,SETUP_AW,val,1);//Set Addr Width in SETUP_AW Register[1:0]
-	_delay_us(100);
-	val[0] = 0x2F;
-	WriteToNrf(W,SETUP_RETR,val,1);//SETUP_RETR --- Automatic Retransmission Set up
-	_delay_us(100);
-	val[0] = 0x01;
-	WriteToNrf(W,EN_AA,val,1);//Enable Data Pipe 0 to receive ACK
-	_delay_us(100);
-	for(int i = 0;i<5;i++)
-	{
-		val[i] = 0x12;
-	}
-	WriteToNrf(W,RX_ADDR_P0,val,5);//RX_ADDR_P0 same as TX_ADDR
-	_delay_us(100);
-	val[0] = 0x1E;
-	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX[BIT 0] in STATUS register as Low for PTX
-	_delay_us(100);
-	transmit_payload(tx_payload);
-	while((GetReg(STATUS) & (1<<5)) == 0)
-	{
-		//Data has not been successfully sent
-		//Send Again after resetting flags
-		USART_SENDSTRING("FAILED");
-		reset();
-		_delay_us(130);
-		transmit_payload(tx_payload);
-	}
-	PORTD |= (1<<LEDPin);	//DATA SENT TOGGLE LED
-	_delay_ms(500);
-	PORTD &= ~(1<<LEDPin);
-	//Check for TX_DS Bit in STATUS HIGH= Success
-	//Check MAX_RT in STATUR HIGH=Max retries reached. Write 1 to reset
+	
+	WriteToNrf(R,FLUSH_TX,tx_payload,0);//Flush the TX FIFO
+	WriteToNrf(R,W_TX_PAYLOAD,tx_payload,5);//Load Payload of length 5
+	
+	_delay_ms(10);
+	SETBIT(PORTB,CEPin);//Start Transmitting
+	_delay_us(40);
+	CLEARBIT(PORTB,CEPin);//Stop transmitting
+	_delay_ms(10);
 }
 int main(void)
 {
-	uint8_t w_buf[32];
-	for(int i=0;i<32;i++)
+	_delay_ms(100);
+	uint8_t w_buf[5];
+	for(int i=0;i<5;i++)
 	{
 		w_buf[i]=0x41;
 	}
 	USART_INIT(51);
 	USART_SENDSTRING("PROGRAM STARTED");
 	initSPI();
+	transmit_init();
 	DDRD |= (1<<LEDPin);		//Set LEDPin as Output
 	DDRD &= ~(1<<BUTPin);		//Set BUTPin as Input
 	PORTD |= (1<<BUTPin);		//Enable internal Pull up on BUTPin
-	send_data(w_buf);
 	while(1)
 	{
 		PORTD ^= (1<<LEDPin);
+		send_data(w_buf);
+		_delay_ms(10);
+		reset();
 		_delay_ms(500);
 	}
 }
