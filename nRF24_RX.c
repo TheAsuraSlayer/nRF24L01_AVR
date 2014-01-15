@@ -1,7 +1,7 @@
 /*
- * nRF24_TX.c
+ * nRF24_RX.c
  *
- * Created: 10-01-2014 22:25:34
+ * Created: 11-01-2014 23:23:06
  *  Author: Abhinav
  */ 
 
@@ -122,45 +122,45 @@ uint8_t *WriteToNrf(uint8_t ReadWrite, uint8_t reg, uint8_t *val, uint8_t antVal
 }
 //void nrf24L01_init(void)
 //{
-	//uint8_t val[5];
-	///**Set up as transmitter, power up**/
-	//val[0] = 0x1E;
-	//WriteToNrf(W,CONFIG,val,1);
-	///***********************************/
-	//_delay_us(100);
-	///**Set transmitter address**/
-	//for(int i = 0;i<5;i++)
-	//{
-		//val[i] = 0x12;
-	//}
-	//WriteToNrf(W,TX_ADDR,val,5);
-	///**Enable Auto-ACK on Data Pipe 0**/
-	//val[0] = 0x01;
-	//WriteToNrf(W,EN_AA,val,1);
-	///**Set Receiver Address on Data Pipe 0 for Auto ACK --> Same as TX Address**/	
-	//for(int i = 0;i<5;i++)
-	//{
-		//val[i] = 0x12;
-	//}
-	//WriteToNrf(W,RX_ADDR_P5,val,5);
-	//
-	//val[0] = 0x2F;
-	//WriteToNrf(W,SETUP_RETR,val,1);	//Retry sending packets every 750us and 15 times
-	//
-	//val[0] = 0x01;
-	//WriteToNrf(W,EN_RXADDR,val,1);	//Enable data pipe 0
-	//
-	//val[0] = 0x03;
-	//WriteToNrf(W,SETUP_AW,val,1);	//Set up Addr Width as 5Bytes
-	//
-	//val[0] = 0x01;
-	//WriteToNrf(W,RF_CH,val,1);		//Set up channel frequency as 2401ghz
-	//
-	//val[0] = 0x07;
-	//WriteToNrf(W,RF_SETUP,val,1);	//Set to 1Mbps and 0dbm
-	//
-	//
-	//
+//uint8_t val[5];
+///**Set up as transmitter, power up**/
+//val[0] = 0x1E;
+//WriteToNrf(W,CONFIG,val,1);
+///***********************************/
+//_delay_us(100);
+///**Set transmitter address**/
+//for(int i = 0;i<5;i++)
+//{
+//val[i] = 0x12;
+//}
+//WriteToNrf(W,TX_ADDR,val,5);
+///**Enable Auto-ACK on Data Pipe 0**/
+//val[0] = 0x01;
+//WriteToNrf(W,EN_AA,val,1);
+///**Set Receiver Address on Data Pipe 0 for Auto ACK --> Same as TX Address**/
+//for(int i = 0;i<5;i++)
+//{
+//val[i] = 0x12;
+//}
+//WriteToNrf(W,RX_ADDR_P5,val,5);
+//
+//val[0] = 0x2F;
+//WriteToNrf(W,SETUP_RETR,val,1);	//Retry sending packets every 750us and 15 times
+//
+//val[0] = 0x01;
+//WriteToNrf(W,EN_RXADDR,val,1);	//Enable data pipe 0
+//
+//val[0] = 0x03;
+//WriteToNrf(W,SETUP_AW,val,1);	//Set up Addr Width as 5Bytes
+//
+//val[0] = 0x01;
+//WriteToNrf(W,RF_CH,val,1);		//Set up channel frequency as 2401ghz
+//
+//val[0] = 0x07;
+//WriteToNrf(W,RF_SETUP,val,1);	//Set to 1Mbps and 0dbm
+//
+//
+//
 //}
 void reset(void)
 {
@@ -173,83 +173,82 @@ void reset(void)
 	_delay_us(10);
 	SETBIT(PORTB, CSNPin);
 }
-//void transmit_payload(uint8_t * W_BUFFER)
-//{
-	//WriteToNrf(R,FLUSH_TX,data,1);
-	//_delay_us(130);
-	//WriteToNrf(R,W_TX_PAYLOAD,W_BUFFER,32);		//Sends the data to nRf
-	//_delay_us(130);
-	//SETBIT(PORTB,CEPin);		//CE Held HIGH TO TRANSMIT
-	//_delay_us(130);
-	//CLEARBIT(PORTB,CEPin);
-	//_delay_us(130);
-	//
-//}
-void transmit_init(void)
+uint8_t *receive_payload(void)
+{
+	SETBIT(PORTB,CEPin);//Start Active RX Mode
+	_delay_ms(1000);
+	USART_SENDSTRING("Waiting..");
+	while ((GetReg(STATUS) & (1<<6)) == 0)
+	{
+		_delay_us(10);
+	}
+	CLEARBIT(PORTB,CEPin);//Enter Standby Mode
+	_delay_ms(10);
+	return WriteToNrf(R,R_RX_PAYLOAD,data,32);
+}
+void receive_init(void)
 {
 	_delay_ms(100);
 	uint8_t val[5];
-	val[0] = 0x1C;
-	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX in CONFIG reg to LOW [DONT POWER UP THE RADIO i.e keep it in power down mode]
+	val[0] = 0x1D;
+	WriteToNrf(W,CONFIG,val,1);//Set PRIM_RX bit in CONFIG reg to HIGH. But do not power up the Radio.
+	val[0] = 0x01;
+	WriteToNrf(W,EN_RXADDR,val,1);//Enable Data Pipe 0
 	for(int i = 0;i<5;i++)
 	{
 		val[i] = 0x12;
 	}
-	WriteToNrf(W,TX_ADDR,val,5);//Clock the addr of the receiving node in TX_ADDR
+	WriteToNrf(W,RX_ADDR_P0,val,5);//Set Data Pipe 0 Addr
 	val[0] = 0x01;
-	WriteToNrf(W,EN_AA,val,1);//Enable Auto ACK
-	val[0] = 0x01;
-	WriteToNrf(W,EN_RXADDR,val,1);//Configure Data Pipe 0 to receive the Auto Ack
-	for(int i = 0;i<5;i++)
-	{
-		val[i] = 0x12;
-	}
-	WriteToNrf(W,RX_ADDR_P0,val,5);//Clock RX_ADDR_P0 same as TX_ADDR
+	WriteToNrf(W,EN_AA,val,1);//Enable Auto Ack on Data Pipe 0
+	val[0] = 5;
+	WriteToNrf(W,RX_PW_P0,val,1);//Set correct payload width[5 bytes]
 	val[0] = 0x32;
 	WriteToNrf(W,RF_CH,val,1);//Set the CH
 	val[0] = 0x2F;
-	WriteToNrf(W,SETUP_RETR,val,1);//Set up Retries
-	val[0]=0x07;
-	WriteToNrf(W,RF_SETUP,val,1);//Set the transfer speed
-	val[0] = 0x1E;
-	WriteToNrf(W,CONFIG,val,1);//POWER UP RADIO IN TX MODE
+	WriteToNrf(W,SETUP_RETR,val,1);//Set transfer rate
+	val[0] = 0x1F;
+	WriteToNrf(W,CONFIG,val,1);//Power up Radio
 	_delay_ms(100);
-	USART_SENDSTRING("RADIO_INIT");//USART--> Radio Initialised as transmitter
-	
+	USART_SENDSTRING("RADIO_INIT");
 }
-void send_data(uint8_t * tx_payload)
+void receive_data(void)
 {
-	
-	WriteToNrf(R,FLUSH_TX,tx_payload,0);//Flush the TX FIFO
-	WriteToNrf(R,W_TX_PAYLOAD,tx_payload,5);//Load Payload of length 5
-	
 	_delay_ms(10);
-	SETBIT(PORTB,CEPin);//Start Transmitting
-	_delay_us(40);
-	CLEARBIT(PORTB,CEPin);//Stop transmitting
-	_delay_ms(10);
+	SETBIT(PORTB,CEPin);
+	_delay_ms(1000);
+	CLEARBIT(PORTB,CEPin);
 }
 int main(void)
 {
-	_delay_ms(100);
-	uint8_t w_buf[5];
-	for(int i=0;i<5;i++)
-	{
-		w_buf[i]=0x41;
-	}
+	uint8_t *val;
 	USART_INIT(51);
 	USART_SENDSTRING("PROGRAM STARTED");
 	initSPI();
-	transmit_init();
+	receive_init();
 	DDRD |= (1<<LEDPin);		//Set LEDPin as Output
 	DDRD &= ~(1<<BUTPin);		//Set BUTPin as Input
 	PORTD |= (1<<BUTPin);		//Enable internal Pull up on BUTPin
 	while(1)
 	{
-		PORTD ^= (1<<LEDPin);
-		send_data(w_buf);
+		//val = WriteToNrf(R,CONFIG,data,1);	//Get CONFIG REG
+		USART_TRANSMIT(val[0]);
+		receive_data();
 		_delay_ms(10);
-		reset();
-		_delay_ms(500);
+		if(((GetReg(STATUS) & (1<<6)) == 0))
+		{
+			USART_SENDSTRING("DATA RECEIVED");
+			val = WriteToNrf(R,R_RX_PAYLOAD,data,5);
+			for(int i=0;i<5;i++)
+			{
+				USART_TRANSMIT(val[i]);
+			}
+			reset();
+		}
+		else
+		{
+			reset();
+			_delay_ms(10);
+		}
 	}
 }
